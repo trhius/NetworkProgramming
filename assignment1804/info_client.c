@@ -1,66 +1,101 @@
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netdb.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <errno.h>
+#include <unistd.h>
 
-#define MAX_DRIVES 10
+#define MAX_LENGTH 1024
 
-int main() {
-    int client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+int main()
+{
 
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    addr.sin_port = htons(9000); 
+    // Thiết lập thông tin địa chỉ cho socket
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_addr.sin_port = htons(9000);
 
-    if (connect(client, (struct sockaddr *)&addr, sizeof(addr))) {
+    // Tạo socket
+    int client = socket(AF_INET, SOCK_STREAM, 0);
+    if (client == -1)
+    {
+        perror("socket() failed");
+        return 1;
+    }
+
+    // Kết nối đến server
+    if (connect(client, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
+    {
         perror("connect() failed");
         return 1;
     }
-        
+    // printf("Connection to %s %s port [tcp/*] succeeded!\n", argv[1], argv[2]);
 
-    //Khoi tao 
-    char computer_name[64];
-    int num_drives;
-    char drives[MAX_DRIVES][2];
-    int sizes[MAX_DRIVES];
-    int i;
+    while (1)
+    {
+        // Nhập tên máy tính
+        char nameComputer[MAX_LENGTH];
+        memset(nameComputer, 0, MAX_LENGTH);
+        printf("Enter name computer: ");
+        fgets(nameComputer, MAX_LENGTH, stdin);
+        nameComputer[strcspn(nameComputer, "\n")] = 0;
 
-    // Nhập tên máy tính
-    printf("Nhap ten may tinh: ");
-    scanf("%s", computer_name);
+        // Nhập số lượng ổ đĩa
+        unsigned short numberDisk = 0;
+        printf("Enter number disk: ");
+        scanf("%hu", &numberDisk);
+        getchar();
 
-    // Nhập số lượng ổ đĩa và thông tin chi tiết của từng ổ đĩa
-    printf("Nhap so luong o dia: ");
-    scanf("%d", &num_drives);
+        // Nhập tên từng ổ đĩa và dung lượng đi kèm
+        char nameDisk[MAX_LENGTH][MAX_LENGTH];
+        unsigned short sizeDisk[MAX_LENGTH];
+        for (int i = 0; i < numberDisk; i++)
+        {
+            memset(nameDisk[i], 0, MAX_LENGTH);
+            printf("\t- Enter name disk %d: ", i + 1);
+            fgets(nameDisk[i], MAX_LENGTH, stdin);
+            nameDisk[i][strcspn(nameDisk[i], "\n")] = 0;
 
-    for (i = 0; i < num_drives; i++) {
-        printf("Nhap thong tin o dia thu %d:\n", i + 1);
-        printf("  Kieu o dia (vd: C): ");
-        scanf("%s", drives[i]);
-        printf("  Kich thuoc (GB): ");
-        scanf("%d", &sizes[i]);
-    }
+            printf("\t- Enter size disk %d: ", i + 1);
+            scanf("%hu", &sizeDisk[i]);
+            getchar();
+        }
 
+        // Đóng gói thông tin
+        char buffer[MAX_LENGTH];
+        memset(buffer, 0, MAX_LENGTH);
+        sprintf(buffer, "%s;%hu", nameComputer, numberDisk);
+        for (int i = 0; i < numberDisk; i++)
+        {
+            sprintf(buffer, "%s;%s;%hu", buffer, nameDisk[i], sizeDisk[i]);
+        }
 
-    // Đóng gói dữ liệu và gửi tới info_server
-    printf("Ten may tinh %s\nSo o dia %d \n", computer_name, num_drives);
-    for (i = 0; i < num_drives; i++) {
-        printf("   %s - %dGB", drives[i], sizes[i]);
-        if (i < num_drives - 1) {
-            printf("\n");
+        // Gửi thông tin đến server
+        if (send(client, buffer, strlen(buffer), 0) == -1)
+        {
+            perror("send() failed");
+            return 1;
+        }
+
+        // Hỏi người dùng có muốn nhập tiếp không
+        memset(buffer, 0, MAX_LENGTH);
+        printf("Do you want to continue? (y/n): ");
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\n")] = 0;
+        if (strcmp(buffer, "n") == 0)
+        {
+            if (send(client, "exit\n", 5, 0) == -1)
+            {
+                perror("send() failed");
+                return 1;
+            }
+            break;
         }
     }
-
-    printf("\n");
-
-
-    // Ket thuc, dong socket
     close(client);
-
     return 0;
 }
-    
