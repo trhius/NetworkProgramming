@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
             }
 
             message[recv_len] = '\0';
-            printf("[Server]: %s", message);
+            printf("Received: %s", message);
         }
     }
 
